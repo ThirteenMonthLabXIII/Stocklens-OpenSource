@@ -1,0 +1,30 @@
+A股选股仪 增强版 v0.2.7_phase9
+
+第九阶段：商业交付包 + GitHub 私有源码同步
+
+主要变化：
+
+1. 新增第九阶段交付脚本 `tools/prepare_phase9_release.py`。
+2. 新增一键入口 `生成第九阶段交付包.bat`。
+3. 交付目录统一为 `release/V1_商业交付_YYYYMMDD_HHMM/`。
+4. 同时生成商业出售版、GitHub 私有源码版、zip、RELEASE_MANIFEST.json 和 SHA256。
+5. 商业包只包含 exe、使用说明、免责声明、版本说明、常见问题和示例策略，不包含源码、个人数据、数据库或 data_location.txt。
+6. 源码包排除个人数据、构建产物、交付产物、验收报告、数据库和 API Key。
+7. 发版验收标题升级为“第九阶段商业交付验收”；live 小样本失败只记录风险，不阻断离线发版。
+8. 新增第九阶段交付专项测试，接入总验收。
+9. 新增 GitHub 私有仓库同步说明、PR 模板和 issue 模板。
+10. 买家说明补充数据源健康、缓存年龄、字段说明、澄清模板、验收中心和免责声明。
+11. API Key 恢复为优先保存到 Windows 凭据管理器，失败时才使用数据目录数据库兜底，并自动迁移旧数据库明文。
+12. 激活码已移除，AI 功能只依赖用户自己的 DeepSeek/OpenAI API Key。
+13. 设置页保存 API Key 后会自动后台验证，OpenAI 使用 /v1/models，DeepSeek 使用 /models 和 /user/balance。
+14. 第九阶段交付脚本保留私钥排除规则，源码包和商业包均不得包含 private_keys、.pem、.key 或 license_private_key.json。
+14. 新增人工 UI 验收记录工具，可生成 TXT/JSON 留档报告，并可挂入 RELEASE_MANIFEST.json 标记 accepted 或 pending。
+15. 新增 GitHub 私有源码同步脚本，支持从最新源码包同步到私有仓库工作目录，并生成同步报告、保留 .git、检查禁入文件。
+16. 新增最终商业外发闸门，检查 manifest、SHA256、zip 内容、离线验收、live 状态和人工 UI 验收；pending 时默认拒绝外发。
+17. 修复商业安装包遗漏 Baostock 运行依赖的问题，PIT 数据/免费源 Baostock 相关功能不再要求买家自行安装 baostock。
+
+边界说明：
+
+- V1 schema 继续保持 v3。
+- 暂不扩 OR、schema v4、回测、收益统计、策略市场和 Web 后端。
+- 暂不接入 GitHub Actions 自动打包，避免 Windows/PyInstaller/行情依赖导致不稳定。

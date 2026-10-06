@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "set_version": "1.0.0",
+  "status": "shadow",
+  "templates": [
+    {
+      "template_id": "quality", "version": "1.0.0", "status": "shadow",
+      "display_name": "质量", "supported_dimensions": ["quality"],
+      "field_weights": {"roe": 0.3333333333, "net_margin": 0.3333333333, "gross_margin": 0.3333333334},
+      "hard_filters": ["exclude_delisting_and_st", "exclude_all_scoring_fields_missing"],
+      "default_top_n": 50,
+      "required_fields": ["roe", "net_margin", "gross_margin"], "optional_fields": [],
+      "missing_data_policy": "neutral_50_keep_weights_discount_0.97",
+      "explanation_template": "{template_name} v{template_version}｜股票池{universe_name}｜总分{score}｜主要贡献{top_contributions}｜主要拖累{top_drags}｜缺失{missing_fields}（完整度×{completeness_discount}）"
+    },
+    {
+      "template_id": "growth", "version": "1.0.0", "status": "shadow",
+      "display_name": "成长", "supported_dimensions": ["growth"],
+      "field_weights": {"revenue_growth": 0.30, "profit_growth": 0.70},
+      "hard_filters": ["exclude_delisting_and_st", "exclude_all_scoring_fields_missing"],
+      "default_top_n": 50,
+      "required_fields": ["profit_growth"], "optional_fields": ["revenue_growth"],
+      "missing_data_policy": "neutral_50_keep_weights_discount_0.97",
+      "explanation_template": "{template_name} v{template_version}｜股票池{universe_name}｜总分{score}｜主要贡献{top_contributions}｜主要拖累{top_drags}｜缺失{missing_fields}（完整度×{completeness_discount}）"
+    },
+    {
+      "template_id": "value", "version": "1.0.0", "status": "shadow",
+      "display_name": "估值", "supported_dimensions": ["value"],
+      "field_weights": {"pe_ttm": 0.50, "pb": 0.50},
+      "hard_filters": ["exclude_delisting_and_st", "exclude_all_scoring_fields_missing"],
+      "default_top_n": 50,
+      "required_fields": ["pe_ttm", "pb"], "optional_fields": [],
+      "missing_data_policy": "neutral_50_keep_weights_discount_0.97",
+      "explanation_template": "{template_name} v{template_version}｜股票池{universe_name}｜总分{score}｜主要贡献{top_contributions}｜主要拖累{top_drags}｜缺失{missing_fields}（完整度×{completeness_discount}）"
+    },
+    {
+      "template_id": "quality_value", "version": "1.0.0", "status": "shadow",
+      "display_name": "质量价值", "supported_dimensions": ["quality", "value"],
+      "field_weights": {"roe": 0.20, "net_margin": 0.20, "gross_margin": 0.20, "pe_ttm": 0.20, "pb": 0.20},
+      "hard_filters": ["exclude_delisting_and_st", "exclude_all_scoring_fields_missing"],
+      "default_top_n": 50,
+      "required_fields": ["roe", "net_margin", "gross_margin", "pe_ttm", "pb"], "optional_fields": [],
+      "missing_data_policy": "neutral_50_keep_weights_discount_0.97",
+      "explanation_template": "{template_name} v{template_version}｜股票池{universe_name}｜总分{score}｜主要贡献{top_contributions}｜主要拖累{top_drags}｜缺失{missing_fields}（完整度×{completeness_discount}）"
+    },
+    {
+      "template_id": "trend", "version": "1.0.0", "status": "shadow",
+      "display_name": "趋势", "supported_dimensions": ["trend"],
+      "field_weights": {"trend_20d": 0.70, "technical_profile_score": 0.30},
+      "hard_filters": ["exclude_delisting_and_st", "exclude_all_scoring_fields_missing"],
+      "default_top_n": 50,
+      "required_fields": ["trend_20d"], "optional_fields": ["technical_profile_score"],
+      "missing_data_policy": "neutral_50_keep_weights_discount_0.97",
+      "explanation_template": "{template_name} v{template_version}｜股票池{universe_name}｜总分{score}｜主要贡献{top_contributions}｜主要拖累{top_drags}｜缺失{missing_fields}（完整度×{completeness_discount}）"
+    }
+  ]
+}

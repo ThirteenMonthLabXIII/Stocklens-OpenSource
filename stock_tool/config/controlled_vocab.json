@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "vocab_version": "1.0.0",
+  "entries": [
+    {"canonical_term":"质量模板","aliases":["质量股","优质股","优质公司"],"target_type":"template","target_id":"quality","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"成长模板","aliases":["成长股","高成长","增长快"],"target_type":"template","target_id":"growth","operator_mapping":null,"unit":null,"ambiguity":"contextual","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"估值模板","aliases":["价值股","低估值","低估"],"target_type":"template","target_id":"value","operator_mapping":null,"unit":null,"ambiguity":"contextual","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"质量价值模板","aliases":["质量价值","优质低估","高质量低估值"],"target_type":"template","target_id":"quality_value","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"趋势模板","aliases":["趋势股","趋势向上","走势强"],"target_type":"template","target_id":"trend","operator_mapping":null,"unit":null,"ambiguity":"contextual","requires_confirmation":false,"unsupported_reason":null},
+
+    {"canonical_term":"净资产收益率","aliases":["ROE","净资产收益率"],"target_type":"field","target_id":"roe","operator_mapping":null,"unit":"%","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"净利率","aliases":["净利率","销售净利率"],"target_type":"field","target_id":"net_margin","operator_mapping":null,"unit":"%","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"毛利率","aliases":["毛利率","销售毛利率"],"target_type":"field","target_id":"gross_margin","operator_mapping":null,"unit":"%","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"营收增长率","aliases":["营收增长率","营收增长","营业收入增长率"],"target_type":"field","target_id":"revenue_growth","operator_mapping":null,"unit":"%","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"净利润增长率","aliases":["净利润增长率","净利润增长","利润增长"],"target_type":"field","target_id":"profit_growth","operator_mapping":null,"unit":"%","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"资产负债率","aliases":["资产负债率","负债率"],"target_type":"field","target_id":"debt_ratio","operator_mapping":null,"unit":"%","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"滚动市盈率","aliases":["滚动市盈率","PE-TTM","PETTM"],"target_type":"field","target_id":"pe_ttm","operator_mapping":null,"unit":"倍","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"动态市盈率","aliases":["动态市盈率","动态PE"],"target_type":"field","target_id":"pe","operator_mapping":null,"unit":"倍","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"市盈率口径","aliases":["PE","市盈率"],"target_type":"field","target_id":"pe_ttm|pe","operator_mapping":null,"unit":"倍","ambiguity":"multiple_targets","requires_confirmation":true,"unsupported_reason":null},
+    {"canonical_term":"市净率","aliases":["PB","市净率"],"target_type":"field","target_id":"pb","operator_mapping":null,"unit":"倍","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"近20日趋势","aliases":["近20日","近20日趋势","20日趋势"],"target_type":"field","target_id":"trend_20d","operator_mapping":null,"unit":"%","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+
+    {"canonical_term":"至少","aliases":["至少","不低于","不少于","大于等于"],"target_type":"operator","target_id":">=","operator_mapping":{"op":">="},"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"高于","aliases":["高于","大于","超过"],"target_type":"operator","target_id":">","operator_mapping":{"op":">"},"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"不超过","aliases":["不超过","不高于","不大于","小于等于"],"target_type":"operator","target_id":"<=","operator_mapping":{"op":"<="},"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"低于","aliases":["低于","小于","少于"],"target_type":"operator","target_id":"<","operator_mapping":{"op":"<"},"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"排名前N","aliases":["排名前","前N名","前N只"],"target_type":"operator","target_id":"result_limit","operator_mapping":{"capture":"positive_integer"},"unit":"只","ambiguity":"contextual","requires_confirmation":false,"unsupported_reason":null},
+
+    {"canonical_term":"最便宜","aliases":["最便宜","估值最低"],"target_type":"sort","target_id":"value","operator_mapping":{"template_id":"value","sort":"template_score_desc"},"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"增长最快","aliases":["增长最快","成长最快"],"target_type":"sort","target_id":"growth","operator_mapping":{"template_id":"growth","sort":"template_score_desc"},"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+
+    {"canonical_term":"全A","aliases":["全A","全A股","全部A股"],"target_type":"universe","target_id":"all_a","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"沪深300","aliases":["沪深300","HS300","CSI300"],"target_type":"universe","target_id":"hs300","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"创业板","aliases":["创业板","创业板股票"],"target_type":"universe","target_id":"chinext","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+
+    {"canonical_term":"字段较低","aliases":["较低","偏低","比较低"],"target_type":"fuzzy","target_id":"field_threshold","operator_mapping":null,"unit":null,"ambiguity":"inherently_ambiguous","requires_confirmation":true,"unsupported_reason":null},
+    {"canonical_term":"字段优秀","aliases":["优秀","稳健","较好","较高","偏高"],"target_type":"fuzzy","target_id":"field_threshold","operator_mapping":null,"unit":null,"ambiguity":"inherently_ambiguous","requires_confirmation":true,"unsupported_reason":null},
+
+    {"canonical_term":"自定义时间窗","aliases":["最近一年","近一年","近三季度","最近三季度"],"target_type":"unsupported","target_id":"custom_time_window","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":"当前闭集仅支持固定近20日趋势，不支持自定义财务期间。"},
+    {"canonical_term":"行业板块","aliases":["行业","板块","申万行业"],"target_type":"unsupported","target_id":"industry","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":"闭集模板不直接解析任意行业名；智能筛选支持行业强度以及包含/排除行业，数据可用性依赖 PIT/筛选数据。"},
+    {"canonical_term":"换手率","aliases":["换手率","低换手","高换手"],"target_type":"field","target_id":"turnover","operator_mapping":null,"unit":"%","ambiguity":"none","requires_confirmation":false,"unsupported_reason":null},
+    {"canonical_term":"股息率","aliases":["股息率","分红率","高股息"],"target_type":"unsupported","target_id":"dividend_yield","operator_mapping":null,"unit":"%","ambiguity":"none","requires_confirmation":false,"unsupported_reason":"当前数据源未提供可审计的股息率筛选字段。"},
+    {"canonical_term":"技术指标","aliases":["MACD","RSI","KDJ","金叉"],"target_type":"unsupported","target_id":"technical_indicator_filter","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":"技术画像可参与 trend 模板，但闭集不支持单独的 MACD/RSI/KDJ 条件。"},
+    {"canonical_term":"资金流","aliases":["资金流","资金流入","主力资金","主力行为"],"target_type":"unsupported","target_id":"money_flow","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":"资金流仅用于单股观察，尚未进入可回测选股链路。"},
+    {"canonical_term":"市场情绪","aliases":["市场情绪","情绪好","情绪低迷"],"target_type":"unsupported","target_id":"market_sentiment","operator_mapping":null,"unit":null,"ambiguity":"none","requires_confirmation":false,"unsupported_reason":"市场情绪是全局背景，不是个股截面排序字段。"}
+  ]
+}

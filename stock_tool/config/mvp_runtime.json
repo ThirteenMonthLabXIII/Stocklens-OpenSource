@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "score_mode": "shadow",
+  "production_mode_requires_shadow_trading_days": 5,
+  "production_mode_requires_all_combinations": 15,
+  "note": "shadow模式使用 active 专业公式主分生成 local_score 与排序，同时留档模板分、旧分参考和分项解释；完成预注册门控后可切换为 production。异常时回滚到上一版 active 专业公式，legacy_score 仅作只读参考。"
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "status": "development_data_audit_not_return_evidence",
+  "source": "research/data/panel.sqlite3 prices_daily",
+  "window": ["2019-01-01", "2024-12-31"],
+  "sampling": "72 calendar month-end trading-day cross-sections",
+  "rows": 318861,
+  "data_fingerprint_reference": "research/out/phase_b_quality.json",
+  "data_fingerprint": {
+    "algorithm": "sha256",
+    "panel_sqlite3": "c4c7941d6c907c018abaf2859a76b3fd2c3769437a07987de98ad5e83368110f",
+    "phase_b_quality_report": "c49f5128d93d7d4943104ce25ef23d920faf26ea763822b2341ca9adedc44893"
+  },
+  "positive_value_distribution": {
+    "pe_ttm": {"valid_rows": 256861, "nonpositive_rows": 62000, "q10": 12.3758, "q40": 27.4927, "q75": 61.7428, "q90": 125.0205},
+    "pb_mrq": {"valid_rows": 316445, "nonpositive_rows": 2416, "q10": 1.0696, "q40": 2.0663, "q75": 3.9551, "q90": 6.7537}
+  },
+  "decision": "Use selected-universe relative quantile anchors; do not interpret the audit as return or alpha evidence."
+}

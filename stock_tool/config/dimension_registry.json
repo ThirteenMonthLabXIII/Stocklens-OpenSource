@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "registry_version": "1.0.0",
+  "status": "shadow",
+  "dimensions": [
+    {
+      "dimension_id": "quality",
+      "display_name": "质量",
+      "eligible_fields": ["roe", "net_margin", "gross_margin"],
+      "field_directions": {"roe": "higher_better", "net_margin": "higher_better", "gross_margin": "higher_better"},
+      "normalization": {"type": "universe_percentile", "reference": "selected_universe_before_user_filters"},
+      "missing_value_policy": "neutral_50_keep_weights_discount_0.97",
+      "default_weight": 0.30,
+      "data_availability": {"roe": "buildable_now", "net_margin": "buildable_now", "gross_margin": "buildable_now"},
+      "pit_requirement": {"live": "latest_snapshot", "backtest": "pub_date_lte_asof"}
+    },
+    {
+      "dimension_id": "growth",
+      "display_name": "成长",
+      "eligible_fields": ["revenue_growth", "profit_growth"],
+      "field_directions": {"revenue_growth": "higher_better", "profit_growth": "higher_better"},
+      "normalization": {"type": "universe_percentile", "reference": "selected_universe_before_user_filters"},
+      "missing_value_policy": "neutral_50_keep_weights_discount_0.97",
+      "default_weight": 0.20,
+      "data_availability": {"revenue_growth": "buildable_now", "profit_growth": "buildable_now"},
+      "pit_requirement": {"live": "latest_snapshot", "backtest": "pub_date_lte_asof"}
+    },
+    {
+      "dimension_id": "value",
+      "display_name": "估值",
+      "eligible_fields": ["pe_ttm", "pb"],
+      "field_directions": {"pe_ttm": "interval_optimal", "pb": "interval_optimal"},
+      "normalization": {
+        "type": "relative_interval_piecewise",
+        "reference": "selected_universe_before_user_filters",
+        "quantile_score_anchors": [[0.0, 0], [0.01, 20], [0.05, 70], [0.10, 100], [0.40, 100], [0.75, 50], [0.90, 0]]
+      },
+      "missing_value_policy": "neutral_50_keep_weights_discount_0.97",
+      "default_weight": 0.20,
+      "data_availability": {"pe_ttm": "buildable_now", "pb": "buildable_now"},
+      "pit_requirement": {"live": "latest_snapshot", "backtest": "trade_date_lte_asof"}
+    },
+    {
+      "dimension_id": "safety",
+      "display_name": "安全",
+      "eligible_fields": ["debt_ratio"],
+      "field_directions": {"debt_ratio": "lower_better"},
+      "normalization": {"type": "universe_percentile", "reference": "selected_universe_before_user_filters"},
+      "missing_value_policy": "neutral_50_keep_weights_discount_0.97",
+      "default_weight": 0.20,
+      "data_availability": {"debt_ratio": "buildable_now"},
+      "pit_requirement": {"live": "latest_snapshot", "backtest": "pub_date_lte_asof"}
+    },
+    {
+      "dimension_id": "trend",
+      "display_name": "趋势",
+      "eligible_fields": ["trend_20d", "technical_profile_score"],
+      "field_directions": {"trend_20d": "higher_better", "technical_profile_score": "higher_better"},
+      "normalization": {"type": "mixed", "trend_20d": "universe_percentile", "technical_profile_score": "fixed_ordinal"},
+      "missing_value_policy": "neutral_50_keep_weights_discount_0.97",
+      "default_weight": 0.10,
+      "data_availability": {"trend_20d": "buildable_now", "technical_profile_score": "buildable_now"},
+      "pit_requirement": {"live": "latest_snapshot", "backtest": "trade_date_lte_asof"}
+    }
+  ]
+}

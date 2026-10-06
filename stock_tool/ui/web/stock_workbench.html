@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock Workbench Chart</title>
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <style>
+    @font-face {
+      font-family: "JetBrains Mono";
+      src: url("fonts/JetBrainsMono-Regular.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "JetBrains Mono";
+      src: url("fonts/JetBrainsMono-Medium.ttf") format("truetype");
+      font-weight: 500 700;
+      font-style: normal;
+      font-display: swap;
+    }
+    :root {
+      --bg: #0e1620;
+      --ink: #dce4ee;
+      --muted: #7e8b9e;
+    }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Microsoft YaHei UI", system-ui, Arial, sans-serif;
+    }
+    #stage { position: relative; width: 100vw; height: 100vh; }
+    #chart {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+      outline: none;
+    }
+    /* Visible focus ring for keyboard users without a permanent border. */
+    #chart:focus-visible { box-shadow: inset 0 0 0 2px #4e8edd; }
+    /* Screen-reader-only summary; the canvas itself is opaque to assistive tech,
+       so we mirror the latest bar here and keep aria-label in sync. */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0);
+      white-space: nowrap; border: 0;
+    }
+    /* Faint affordance so users discover the wheel-zoom / drag-pan gestures.
+       Sits in the date-axis gutter, never intercepts pointer events. */
+    #hint {
+      position: absolute;
+      right: 70px; bottom: 4px;
+      font: 11px "Microsoft YaHei UI", system-ui, sans-serif;
+      color: #5d6878;
+      pointer-events: none;
+      user-select: none;
+      transition: opacity .4s ease;
+    }
+  </style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="chart" role="img" tabindex="0"
+          aria-label="股票K线走势图，使用左右方向键查看每根K线数据"></canvas>
+  <div id="sr" class="sr-only" aria-live="polite"></div>
+  <div id="hint">滚轮缩放 · 拖拽平移 · ←→ 浏览</div>
+</div>
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * Qt bridge. Contract preserved verbatim:
+ *   - global renderChart(payload)
+ *   - emit("hover" | "range" | "signalClick", data)
+ *   - payload: { stock:{name,code}, period, range, mode, subchart,
+ *                ohlcv:[{date,open,high,low,close,volume}],
+ *                indicators:{ ma:{MA5,MA10,MA20,MA60},
+ *                             macd:{MACD,DIF,DEA}, rsi:{RSI6,RSI12,RSI24},
+ *                             kdj:{K,D,J}, volume:{VOL5,VOL10} },
+ *                signals:[{date,type,price}] }
+ * ------------------------------------------------------------------ */
+let qtBridge = null;
+if (window.qt && window.qt.webChannelTransport) {
+  new QWebChannel(window.qt.webChannelTransport, channel => {
+    qtBridge = channel.objects.qtBridge;
+  });
+}
+function emit(type, data) {
+  if (qtBridge && qtBridge.emitEvent) {
+    qtBridge.emitEvent(JSON.stringify({ type, ...data }));
+  }
+}
+
+/* ---- Design tokens. Calm trading-terminal palette. -----------------
+ * Red = up, green = down (A-share convention) is locked and never
+ * repurposed for any non-price meaning. Interactive/indicator hues stay
+ * in the blue/amber/violet/cyan family so they never collide with price color.
+ * MA/sub-chart lines follow KLineChart's indicator hue order
+ * (#1677FF / #FF9600 / #935EBD / #01C5C4), lifted slightly for this dark base. */
+const C = {
+  bg:        "#0e1620",
+  ink:       "#dce4ee",
+  text:      "#c0cad7",
+  muted:     "#7e8b9e",
+  faint:     "#5d6878",
+  grid:      "#1b2733",
+  gridEdge:  "#243140",
+  axis:      "#3a4860",
+  cross:     "#8593a6",
+  tagBg:     "#223040",
+  tagInk:    "#e6edf5",
+  up:        "#e0574d",   // 涨
+  down:      "#2fb37e",   // 跌
+  upFill:    "#e0574d",
+  downFill:  "#2fb37e",
+  ma5:       "#5b9bf0",   // blue, based on KLineChart #1677FF
+  ma10:      "#d99a3c",   // amber, based on KLineChart #FF9600
+  ma20:      "#a98cf0",   // violet, based on KLineChart #935EBD; lifted for dark sub-panels
+  ma60:      "#38b48b",   // cyan-green, based on KLineChart #01C5C4
+  flat:      "#7e8b9e"
+};
+const FONT = {
+  title:  '600 15px "Microsoft YaHei UI", system-ui, sans-serif',
+  brand:  '12px "Microsoft YaHei UI", system-ui, sans-serif',
+  label:  '11px "Microsoft YaHei UI", system-ui, sans-serif',
+  num:    '12px "JetBrains Mono", Consolas, "DejaVu Sans Mono", monospace',
+  numSm:  '11px "JetBrains Mono", Consolas, "DejaVu Sans Mono", monospace',
+  tag:    '600 11px "JetBrains Mono", Consolas, "DejaVu Sans Mono", monospace'
+};
+
+/* ---- Zoom / pan tuning. ---------------------------------------------
+ * The default view shows the most recent slice at a readable candle width
+ * instead of cramming the whole history into the canvas. Wheel zoom is
+ * proportional and bounded so candles never get thinner than MIN nor wider
+ * than MAX. */
+const VIEW = {
+  minStep: 9,     // default target px per candle (controls how many show on open)
+  maxStep: 26,    // zoom-in cap: px per candle (further zoom would only add gaps)
+  minVisible: 20  // never show fewer than this many candles
+};
+
+const canvas = document.getElementById("chart");
+const ctx = canvas.getContext("2d");
+const srNode = document.getElementById("sr");
+const hintNode = document.getElementById("hint");
+
+let payload = null;
+let viewStart = 0;
+let viewEnd = 0;
+let hoverIndex = -1;
+let isDragging = false;
+let dragStartX = 0;
+let dragStartStart = 0;
+let dragStartEnd = 0;
+
+/* ------------------------------------------------------------------ *
+ * Public entry point (called from Qt).
+ * ------------------------------------------------------------------ */
+function renderChart(nextPayload) {
+  // Remember the prior series so a cosmetic re-render (switching sub-panel or
+  // candle/line mode) keeps the user's current zoom window instead of snapping
+  // back to a full-history view. A genuinely new series (different stock, or a
+  // different range/period that changes the bar count) resets the window.
+  const prevLen = payload && payload.ohlcv ? payload.ohlcv.length : 0;
+  const prevCode = payload && payload.stock ? payload.stock.code : null;
+
+  payload = nextPayload || payload;
+  const count = payload && payload.ohlcv ? payload.ohlcv.length : 0;
+  const sameSeries = count > 0 && count === prevLen
+    && payload.stock && payload.stock.code === prevCode;
+
+  if (!sameSeries) {
+    // Default view: most-recent slice at a readable candle width, pinned right.
+    const vis = defaultVisible(count);
+    viewEnd = Math.max(0, count - 1);
+    viewStart = Math.max(0, count - vis);
+    hoverIndex = -1;
+  } else {
+    // Preserve the window but keep it inside the (possibly clamped) bounds.
+    viewEnd = Math.min(viewEnd, count - 1);
+    viewStart = Math.max(0, Math.min(viewStart, viewEnd));
+    if (hoverIndex > viewEnd) hoverIndex = -1;
+  }
+  draw();
+  announce(count ? Math.min(viewEnd, count - 1) : -1);
+}
+window.renderChart = renderChart;
+
+/* How many candles to show by default: as many as fit at VIEW.minStep px each,
+ * clamped to [minVisible, total]. Falls back gracefully before first layout. */
+function defaultVisible(total) {
+  if (total <= 0) return 0;
+  const g = geom();
+  const span = Math.max(1, g.right - g.left);
+  const fit = Math.floor(span / VIEW.minStep);
+  return Math.max(VIEW.minVisible, Math.min(total, fit));
+}
+
+function resize() {
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.floor(canvas.clientWidth * ratio));
+  canvas.height = Math.max(1, Math.floor(canvas.clientHeight * ratio));
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  draw();
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* ------------------------------------------------------------------ *
+ * Geometry. One source of truth shared by draw() and the pointer math,
+ * so hit-testing and rendering can never drift apart.
+ * ------------------------------------------------------------------ */
+function geom() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  const left = 14;
+  const right = w - 64;          // right gutter holds the price axis
+  const headerH = 70;            // title + OHLC readout + MA readout
+  const dateAxisH = 24;
+  const panelGap = 26;           // room for the sub-panel caption
+  const subBottom = h - dateAxisH;
+  const usable = subBottom - headerH;
+  const subTop = subBottom - Math.max(64, usable * 0.26);
+  const priceTop = headerH;
+  const priceBottom = subTop - panelGap;
+  return { w, h, left, right, priceTop, priceBottom, subTop, subBottom };
+}
+
+function visibleCount() { return Math.max(1, viewEnd - viewStart + 1); }
+function stepWidth(g) { return (g.right - g.left) / visibleCount(); }
+function xAt(g, localIdx) { return g.left + stepWidth(g) * (localIdx + 0.5); }
+
+/* Single-pass min/max. Replaces Math.min(...bigArray), which both blows
+ * the call stack on long histories and re-scans the array twice. */
+function extendRange(acc, value) {
+  if (!Number.isFinite(value)) return;
+  if (value < acc.min) acc.min = value;
+  if (value > acc.max) acc.max = value;
+}
+
+function indicatorAt(group, key, idx) {
+  const ind = payload.indicators;
+  if (!ind || !ind[group] || !ind[group][key]) return undefined;
+  return ind[group][key][idx];
+}
+
+/* ------------------------------------------------------------------ *
+ * Drawing primitives.
+ * ------------------------------------------------------------------ */
+function scale(min, max, top, bottom) {
+  const span = (max - min) || 1;
+  return value => bottom - ((value - min) / span) * (bottom - top);
+}
+
+function strokeLine(x1, y1, x2, y2, color, width, dashed) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width || 1;
+  if (dashed) ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSeries(series, g, yAt, color, width) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width || 1.4;
+  ctx.beginPath();
+  let moved = false;
+  for (let i = viewStart; i <= viewEnd; i++) {
+    const value = series ? series[i] : undefined;
+    if (!Number.isFinite(value)) { moved = false; continue; }
+    const x = xAt(g, i - viewStart);
+    const y = yAt(value);
+    if (!moved) { ctx.moveTo(x, y); moved = true; }
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+/* Rounded value tag pinned to an axis (the crosshair readouts). */
+function drawTag(text, cx, cy, anchor) {
+  ctx.font = FONT.tag;
+  const padX = 6, padY = 3;
+  const tw = ctx.measureText(text).width;
+  const w = tw + padX * 2;
+  const h = 16;
+  let x = cx;
+  if (anchor === "right") x = cx - w;
+  else if (anchor === "center") x = cx - w / 2;
+  const y = cy - h / 2;
+  ctx.fillStyle = C.tagBg;
+  roundRect(x, y, w, h, 3);
+  ctx.fill();
+  ctx.fillStyle = C.tagInk;
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x + padX, cy + 0.5);
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* ------------------------------------------------------------------ *
+ * Main render.
+ * ------------------------------------------------------------------ */
+function draw() {
+  const g = geom();
+  ctx.clearRect(0, 0, g.w, g.h);
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, g.w, g.h);
+  ctx.textBaseline = "alphabetic";
+
+  if (!payload || !payload.ohlcv || payload.ohlcv.length === 0) {
+    ctx.fillStyle = C.muted;
+    ctx.font = FONT.title;
+    ctx.fillText("暂无可绘制 K 线数据", 18, 40);
+    ctx.font = FONT.label;
+    ctx.fillStyle = C.faint;
+    ctx.fillText("选择股票并加载行情后，这里会显示蜡烛图、均线与成交量。", 18, 62);
+    return;
+  }
+
+  // Price range across visible candles + visible MA points (one pass).
+  const acc = { min: Infinity, max: -Infinity };
+  for (let i = viewStart; i <= viewEnd; i++) {
+    const row = payload.ohlcv[i];
+    if (!row) continue;
+    extendRange(acc, row.low);
+    extendRange(acc, row.high);
+    extendRange(acc, indicatorAt("ma", "MA5", i));
+    extendRange(acc, indicatorAt("ma", "MA10", i));
+    extendRange(acc, indicatorAt("ma", "MA20", i));
+    extendRange(acc, indicatorAt("ma", "MA60", i));
+  }
+  if (!Number.isFinite(acc.min) || !Number.isFinite(acc.max)) {
+    acc.min = 0; acc.max = 1;
+  }
+  const minPrice = acc.min * 0.997;
+  const maxPrice = acc.max * 1.003;
+  const yPrice = scale(minPrice, maxPrice, g.priceTop, g.priceBottom);
+
+  drawGrid(g, minPrice, maxPrice, yPrice);
+  drawCandles(g, yPrice);
+  drawMovingAverages(g, yPrice);
+  drawSignals(g, yPrice);
+  drawSubChart(g);
+  drawDateAxis(g);
+
+  // Crosshair + readouts use the hovered bar, falling back to the last bar.
+  const focusIdx = (hoverIndex >= viewStart && hoverIndex <= viewEnd)
+    ? hoverIndex : viewEnd;
+  if (hoverIndex >= viewStart && hoverIndex <= viewEnd) {
+    drawCrosshair(g, yPrice, minPrice, maxPrice);
+  }
+  drawHeader(g, focusIdx);
+}
+
+function drawGrid(g, min, max, yPrice) {
+  ctx.font = FONT.numSm;
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i++) {
+    const y = g.priceTop + (g.priceBottom - g.priceTop) * i / 4;
+    strokeLine(g.left, y, g.right, y, i === 0 || i === 4 ? C.gridEdge : C.grid, 1);
+    const value = max - (max - min) * i / 4;
+    ctx.fillStyle = C.muted;
+    ctx.fillText(value.toFixed(2), g.right + 7, y);
+  }
+  ctx.textBaseline = "alphabetic";
+}
+
+function drawCandles(g, yPrice) {
+  const step = stepWidth(g);
+  const bodyW = Math.max(1, Math.min(14, step * 0.62));
+
+  if (payload.mode === "line") {
+    ctx.strokeStyle = C.ma5;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    let moved = false;
+    for (let i = viewStart; i <= viewEnd; i++) {
+      const row = payload.ohlcv[i];
+      if (!row || !Number.isFinite(row.close)) { moved = false; continue; }
+      const x = xAt(g, i - viewStart);
+      const y = yPrice(row.close);
+      if (!moved) { ctx.moveTo(x, y); moved = true; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    return;
+  }
+
+  for (let i = viewStart; i <= viewEnd; i++) {
+    const row = payload.ohlcv[i];
+    if (!row) continue;
+    const x = xAt(g, i - viewStart);
+    const up = row.close >= row.open;
+    const color = up ? C.up : C.down;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    // Wick.
+    strokeLine(x, yPrice(row.high), x, yPrice(row.low), color, 1);
+    // Body. Hollow on up bars, filled on down bars: the classic terminal
+    // read where a glance tells direction without reading numbers.
+    const bodyTop = yPrice(Math.max(row.open, row.close));
+    const bodyBottom = yPrice(Math.min(row.open, row.close));
+    const h = Math.max(1, bodyBottom - bodyTop);
+    if (up && h > 1.5) {
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - bodyW / 2, bodyTop, bodyW, h);
+    } else {
+      ctx.fillRect(x - bodyW / 2, bodyTop, bodyW, h);
+    }
+  }
+}
+
+function drawMovingAverages(g, yPrice) {
+  const ma = payload.indicators && payload.indicators.ma;
+  if (!ma) return;
+  drawSeries(ma.MA5, g, yPrice, C.ma5, 1.3);
+  drawSeries(ma.MA10, g, yPrice, C.ma10, 1.3);
+  drawSeries(ma.MA20, g, yPrice, C.ma20, 1.3);
+  drawSeries(ma.MA60, g, yPrice, C.ma60, 1.3);
+}
+
+function drawSignals(g, yPrice) {
+  if (!payload.signals) return;
+  payload.signals.forEach(signal => {
+    const idx = payload.ohlcv.findIndex(row => row.date === signal.date);
+    if (idx < viewStart || idx > viewEnd) return;
+    const x = xAt(g, idx - viewStart);
+    const base = signal.price || payload.ohlcv[idx].close;
+    const y = yPrice(base);
+    const dead = String(signal.type || "").includes("dead");
+    ctx.fillStyle = dead ? C.down : C.up;
+    ctx.beginPath();
+    if (dead) {            // bearish marker sits above the bar, pointing down
+      ctx.moveTo(x, y - 14 + 9);
+      ctx.lineTo(x - 5, y - 14);
+      ctx.lineTo(x + 5, y - 14);
+    } else {              // bullish marker sits below the bar, pointing up
+      ctx.moveTo(x, y + 14 - 9);
+      ctx.lineTo(x - 5, y + 14);
+      ctx.lineTo(x + 5, y + 14);
+    }
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
+/* ---- Sub panel: volume / macd / rsi / kdj ------------------------- */
+function drawSubChart(g) {
+  const kind = payload.subchart || "volume";
+  const top = g.subTop, bottom = g.subBottom;
+  strokeLine(g.left, top, g.right, top, C.gridEdge, 1);
+
+  ctx.font = FONT.label;
+  ctx.fillStyle = C.muted;
+  ctx.fillText(kind.toUpperCase(), g.left, top - 9);
+
+  if (kind === "volume") { drawVolume(g, top, bottom); return; }
+
+  const ind = payload.indicators || {};
+  const groups = {
+    macd: [["DIF", ind.macd && ind.macd.DIF, C.ma5], ["DEA", ind.macd && ind.macd.DEA, C.ma10]],
+    rsi:  [["RSI6", ind.rsi && ind.rsi.RSI6, C.ma5], ["RSI12", ind.rsi && ind.rsi.RSI12, C.ma10], ["RSI24", ind.rsi && ind.rsi.RSI24, C.ma20]],
+    kdj:  [["K", ind.kdj && ind.kdj.K, C.ma5], ["D", ind.kdj && ind.kdj.D, C.ma10], ["J", ind.kdj && ind.kdj.J, C.ma20]]
+  };
+  const lines = groups[kind] || groups.macd;
+  const macdHist = kind === "macd" ? (ind.macd && ind.macd.MACD) : null;
+
+  const acc = { min: Infinity, max: -Infinity };
+  lines.forEach(item => {
+    const arr = item[1];
+    for (let i = viewStart; i <= viewEnd; i++) extendRange(acc, arr ? arr[i] : undefined);
+  });
+  if (macdHist) for (let i = viewStart; i <= viewEnd; i++) extendRange(acc, macdHist[i]);
+  if (!Number.isFinite(acc.min) || !Number.isFinite(acc.max)) { acc.min = 0; acc.max = 1; }
+  // Keep zero in frame so MACD/oscillator sign is readable.
+  if (kind === "macd" || kind === "kdj") { acc.min = Math.min(acc.min, 0); acc.max = Math.max(acc.max, 0); }
+  const pad = (acc.max - acc.min) * 0.08 || 0.5;
+  const yAt = scale(acc.min - pad, acc.max + pad, top + 6, bottom);
+
+  if (acc.min < 0 && acc.max > 0) {
+    strokeLine(g.left, yAt(0), g.right, yAt(0), C.gridEdge, 1);
+  }
+  if (macdHist) {
+    const step = stepWidth(g);
+    const barW = Math.max(1, Math.min(10, step * 0.5));
+    const zero = yAt(0);
+    for (let i = viewStart; i <= viewEnd; i++) {
+      const v = macdHist[i];
+      if (!Number.isFinite(v)) continue;
+      const x = xAt(g, i - viewStart);
+      const y = yAt(v);
+      ctx.fillStyle = v >= 0 ? C.up : C.down;
+      ctx.fillRect(x - barW / 2, Math.min(y, zero), barW, Math.max(1, Math.abs(y - zero)));
+    }
+  }
+  lines.forEach(item => drawSeries(item[1], g, yAt, item[2], 1.3));
+
+  // Legend for the sub panel.
+  let lx = g.left + 44;
+  ctx.font = FONT.numSm;
+  lines.forEach(item => {
+    ctx.fillStyle = item[2];
+    ctx.fillText(item[0], lx, top - 9);
+    lx += ctx.measureText(item[0]).width + 14;
+  });
+}
+
+function drawVolume(g, top, bottom) {
+  const step = stepWidth(g);
+  const barW = Math.max(1, Math.min(14, step * 0.62));
+  const acc = { min: 0, max: -Infinity };
+  for (let i = viewStart; i <= viewEnd; i++) {
+    const row = payload.ohlcv[i];
+    extendRange(acc, row ? row.volume : undefined);
+  }
+  if (!Number.isFinite(acc.max) || acc.max <= 0) {
+    ctx.font = FONT.label;
+    ctx.fillStyle = C.faint;
+    ctx.fillText("成交量数据缺失", g.left + 60, top - 9);
+    return;
+  }
+  const yAt = scale(0, acc.max, top + 6, bottom);
+  for (let i = viewStart; i <= viewEnd; i++) {
+    const row = payload.ohlcv[i];
+    if (!row || !Number.isFinite(row.volume)) continue;
+    const x = xAt(g, i - viewStart);
+    const y = yAt(row.volume);
+    ctx.fillStyle = row.close >= row.open ? C.up : C.down;
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(x - barW / 2, y, barW, bottom - y);
+    ctx.globalAlpha = 1;
+  }
+  const vol = payload.indicators && payload.indicators.volume;
+  if (vol) {
+    drawSeries(vol.VOL5, g, yAt, C.ma5, 1.2);
+    drawSeries(vol.VOL10, g, yAt, C.ma10, 1.2);
+  }
+}
+
+function drawDateAxis(g) {
+  ctx.font = FONT.numSm;
+  ctx.fillStyle = C.muted;
+  ctx.textAlign = "center";
+  const n = visibleCount();
+  const picks = [...new Set([0, Math.floor(n / 3), Math.floor((n * 2) / 3), n - 1])];
+  picks.forEach(local => {
+    const row = payload.ohlcv[viewStart + local];
+    if (!row || !row.date) return;
+    ctx.fillText(String(row.date).slice(5), xAt(g, local), g.subBottom + 16);
+  });
+  ctx.textAlign = "left";
+}
+
+function drawCrosshair(g, yPrice, minPrice, maxPrice) {
+  const local = hoverIndex - viewStart;
+  const x = xAt(g, local);
+  const row = payload.ohlcv[hoverIndex];
+  strokeLine(x, g.priceTop, x, g.subBottom, C.cross, 1, true);
+  if (row && Number.isFinite(row.close)) {
+    const y = yPrice(row.close);
+    strokeLine(g.left, y, g.right, y, C.cross, 1, true);
+    drawTag(row.close.toFixed(2), g.right + 1, y, "left");
+  }
+  if (row && row.date) {
+    drawTag(String(row.date).slice(0, 10), x, g.subBottom + 16, "center");
+  }
+}
+
+/* Header: identity + live OHLC readout + MA readout for the focused bar. */
+function drawHeader(g, idx) {
+  const row = payload.ohlcv[idx];
+  const stock = payload.stock || {};
+  // Line 1: identity.
+  ctx.textBaseline = "alphabetic";
+  ctx.font = FONT.title;
+  ctx.fillStyle = C.ink;
+  const name = `${stock.name || "-"}  ${stock.code || ""}`.trim();
+  ctx.fillText(name, g.left, 22);
+  const nameW = ctx.measureText(name).width;
+  ctx.font = FONT.brand;
+  ctx.fillStyle = C.muted;
+  const periodLabel = { daily: "日K", weekly: "周K", monthly: "月K" }[payload.period] || payload.period || "";
+  const rangeLabel = { all: "全部", "240d": "240日", "120d": "120日", "60d": "60日" }[payload.range] || payload.range || "";
+  const total = payload.ohlcv.length;
+  const meta = ` · ${periodLabel} · ${rangeLabel} · 显示 ${visibleCount()}/${total}`;
+  ctx.fillText(meta, g.left + nameW + 6, 22);
+
+  if (!row) return;
+  // Line 2: OHLC + change.
+  const up = row.close >= row.open;
+  const dir = up ? C.up : C.down;
+  let prevClose = idx > 0 && payload.ohlcv[idx - 1] ? payload.ohlcv[idx - 1].close : row.open;
+  const chg = Number.isFinite(prevClose) && prevClose ? (row.close - prevClose) / prevClose * 100 : 0;
+  const fields = [
+    ["开", row.open, C.text],
+    ["高", row.high, C.up],
+    ["低", row.low, C.down],
+    ["收", row.close, dir]
+  ];
+  let x = g.left;
+  const y2 = 44;
+  fields.forEach(([k, v, col]) => {
+    ctx.font = FONT.label; ctx.fillStyle = C.muted;
+    ctx.fillText(k, x, y2);
+    x += ctx.measureText(k).width + 3;
+    ctx.font = FONT.num; ctx.fillStyle = col;
+    const t = Number.isFinite(v) ? v.toFixed(2) : "-";
+    ctx.fillText(t, x, y2);
+    x += ctx.measureText(t).width + 14;
+  });
+  ctx.font = FONT.num; ctx.fillStyle = dir;
+  const pct = `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%`;
+  ctx.fillText(pct, x, y2);
+
+  // Line 3: MA readout.
+  const mas = [
+    ["MA5", indicatorAt("ma", "MA5", idx), C.ma5],
+    ["MA10", indicatorAt("ma", "MA10", idx), C.ma10],
+    ["MA20", indicatorAt("ma", "MA20", idx), C.ma20],
+    ["MA60", indicatorAt("ma", "MA60", idx), C.ma60]
+  ];
+  let mx = g.left;
+  const y3 = 62;
+  mas.forEach(([k, v, col]) => {
+    ctx.font = FONT.label; ctx.fillStyle = col;
+    ctx.fillText(k, mx, y3);
+    mx += ctx.measureText(k).width + 4;
+    ctx.font = FONT.numSm; ctx.fillStyle = C.text;
+    const t = Number.isFinite(v) ? v.toFixed(2) : "-";
+    ctx.fillText(t, mx, y3);
+    mx += ctx.measureText(t).width + 16;
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Accessibility: mirror the focused bar into a live region and the
+ * canvas aria-label, since canvas pixels are invisible to a screen reader.
+ * ------------------------------------------------------------------ */
+function announce(idx) {
+  if (!payload || !payload.ohlcv || idx < 0 || !payload.ohlcv[idx]) {
+    const msg = "暂无可绘制 K 线数据";
+    srNode.textContent = msg;
+    canvas.setAttribute("aria-label", msg);
+    return;
+  }
+  const row = payload.ohlcv[idx];
+  const stock = payload.stock || {};
+  const dir = row.close >= row.open ? "涨" : "跌";
+  const msg = `${stock.name || ""} ${stock.code || ""}，${row.date}，`
+    + `开 ${fmt(row.open)}，高 ${fmt(row.high)}，低 ${fmt(row.low)}，`
+    + `收 ${fmt(row.close)}，${dir}，成交量 ${fmt(row.volume)}`;
+  srNode.textContent = msg;
+  canvas.setAttribute("aria-label", `K线走势图。当前焦点：${msg}`);
+}
+function fmt(v) { return Number.isFinite(v) ? v.toFixed(2) : "缺失"; }
+
+/* Fade the gesture hint out the first time the user zooms or pans. */
+let hintHidden = false;
+function hideHint() {
+  if (hintHidden || !hintNode) return;
+  hintHidden = true;
+  hintNode.style.opacity = "0";
+}
+
+/* ------------------------------------------------------------------ *
+ * Pointer + keyboard interaction. Pan/zoom/hover/click contract kept.
+ * ------------------------------------------------------------------ */
+function indexFromX(clientX) {
+  const g = geom();
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const local = Math.floor((x - g.left) / stepWidth(g));
+  return viewStart + Math.max(0, Math.min(visibleCount() - 1, local));
+}
+
+function emitHover(idx) {
+  const row = payload.ohlcv[idx];
+  if (!row) return;
+  emit("hover", { row: {
+    ...row,
+    ma5: indicatorAt("ma", "MA5", idx),
+    ma20: indicatorAt("ma", "MA20", idx),
+    macd: indicatorAt("macd", "MACD", idx)
+  }});
+}
+
+canvas.addEventListener("mousemove", event => {
+  if (!payload || !payload.ohlcv.length) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  if (isDragging) {
+    const g = geom();
+    const visible = dragStartEnd - dragStartStart + 1;
+    const step = (g.right - g.left) / visible;
+    const shift = Math.round(-(x - dragStartX) / step);
+    viewStart = Math.max(0, Math.min(payload.ohlcv.length - visible, dragStartStart + shift));
+    viewEnd = viewStart + visible - 1;
+    emit("range", { start: viewStart, end: viewEnd });
+    draw();
+    return;
+  }
+  hoverIndex = indexFromX(event.clientX);
+  emitHover(hoverIndex);
+  announce(hoverIndex);
+  draw();
+});
+
+canvas.addEventListener("mouseleave", () => {
+  hoverIndex = -1;
+  draw();
+});
+
+canvas.addEventListener("mousedown", event => {
+  isDragging = true;
+  dragStartX = event.clientX - canvas.getBoundingClientRect().left;
+  dragStartStart = viewStart;
+  dragStartEnd = viewEnd;
+  canvas.style.cursor = "grabbing";
+  hideHint();
+});
+window.addEventListener("mouseup", () => {
+  isDragging = false;
+  canvas.style.cursor = "crosshair";
+});
+
+canvas.addEventListener("wheel", event => {
+  if (!payload || !payload.ohlcv || payload.ohlcv.length < VIEW.minVisible) return;
+  event.preventDefault();
+  hideHint();
+  const g = geom();
+  const span = Math.max(1, g.right - g.left);
+  const total = payload.ohlcv.length;
+  const current = visibleCount();
+  // Lower bound on visible count = upper bound on candle width.
+  const minVisible = Math.max(VIEW.minVisible, Math.ceil(span / VIEW.maxStep));
+  // Proportional zoom, but guarantee at least one bar of change per notch.
+  let next = Math.round(current * (event.deltaY > 0 ? 1.18 : 0.85));
+  next = event.deltaY > 0 ? Math.max(next, current + 1) : Math.min(next, current - 1);
+  next = Math.max(minVisible, next);
+  next = Math.min(total, next);
+  if (next === current) return;
+  // Keep the candle under the cursor fixed while zooming.
+  const anchor = indexFromX(event.clientX);
+  const leftPart = (anchor - viewStart) / current;
+  viewStart = Math.max(0, Math.min(total - next, Math.round(anchor - next * leftPart)));
+  viewEnd = viewStart + next - 1;
+  emit("range", { start: viewStart, end: viewEnd });
+  draw();
+}, { passive: false });
+
+canvas.addEventListener("click", event => {
+  if (!payload || !payload.signals) return;
+  const idx = indexFromX(event.clientX);
+  const row = payload.ohlcv[idx];
+  if (!row) return;
+  const signal = payload.signals.find(item => item.date === row.date);
+  if (signal) emit("signalClick", { signal });
+});
+
+// Keyboard access: arrow keys walk the crosshair, Home/End jump to ends.
+canvas.addEventListener("keydown", event => {
+  if (!payload || !payload.ohlcv.length) return;
+  let idx = hoverIndex >= 0 ? hoverIndex : viewEnd;
+  if (event.key === "ArrowLeft") idx -= 1;
+  else if (event.key === "ArrowRight") idx += 1;
+  else if (event.key === "Home") idx = viewStart;
+  else if (event.key === "End") idx = viewEnd;
+  else return;
+  event.preventDefault();
+  hoverIndex = Math.max(viewStart, Math.min(viewEnd, idx));
+  emitHover(hoverIndex);
+  announce(hoverIndex);
+  draw();
+});
+</script>
+</body>
+</html>

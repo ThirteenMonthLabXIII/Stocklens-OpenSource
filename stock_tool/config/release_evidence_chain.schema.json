@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stocklens.invalid/schema/release-evidence-chain-v5.json",
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "sha256", "size_bytes"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^(?![A-Za-z]:)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+        "role": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "sha_only": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256"],
+      "properties": {"sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "dependency_lock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "python_version", "packages", "hashes"],
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "python_version": {"type": "string"},
+        "packages": {"type": "object", "additionalProperties": {"type": "string"}},
+        "hashes": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "minItems": 1}}
+      }
+    },
+    "command_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": {"type": "array", "items": {"type": "string"}},
+        "started_at": {"type": "string"},
+        "finished_at": {"type": "string"},
+        "returncode": {"type": "integer"},
+        "ok": {"type": "boolean"},
+        "output_tail": {"type": "string"}
+      }
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files"],
+      "properties": {"files": {"type": "array", "items": {"$ref": "#/$defs/artifact"}}}
+    },
+    "tool_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "sha256", "size_bytes", "version_output"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1}, "role": {"type": "string"},
+        "sha256": {"$ref": "#/$defs/sha256"}, "size_bytes": {"type": "integer", "minimum": 1},
+        "version_output": {"type": "string", "minLength": 1}
+      }
+    },
+    "build_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "backend": {"const": "nuitka"}, "nuitka_version": {"type": "string"},
+        "python_version": {"type": "string"}, "pyside6_version": {"type": "string"},
+        "compiler": {"const": "nuitka-managed-mingw64"}, "mode": {"const": "standalone"},
+        "onefile": {"const": false}, "command": {"type": "array", "items": {"type": "string"}},
+        "compile_report": {"oneOf": [{"$ref": "#/$defs/artifact"}, {"$ref": "#/$defs/sha_only"}]},
+        "resource_manifest": {"oneOf": [{"$ref": "#/$defs/artifact"}, {"$ref": "#/$defs/sha_only"}]},
+        "build_identity": {"$ref": "#/$defs/artifact"},
+        "toolchain": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "python": {
+              "type": "object", "additionalProperties": false,
+              "required": ["path", "role", "sha256", "size_bytes", "version"],
+              "properties": {"path": {"type": "string"}, "role": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}, "size_bytes": {"type": "integer"}, "version": {"type": "string"}}
+            },
+            "pip_version": {"type": "string"}, "nuitka_version": {"type": "string"}, "pyside6_version": {"type": "string"},
+            "mingw": {"$ref": "#/$defs/tool_record"}, "inno": {"$ref": "#/$defs/tool_record"},
+            "installed_distributions": {"type": "object", "additionalProperties": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "git_commit", "installer_sha256", "commercial_zip_sha256", "source_zip_sha256", "candidate_manifest_sha256", "challenge_id"],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 8},
+        "git_commit": {"type": "string", "pattern": "^[0-9a-f]{7,40}$"},
+        "installer_sha256": {"$ref": "#/$defs/sha256"},
+        "commercial_zip_sha256": {"$ref": "#/$defs/sha256"},
+        "source_zip_sha256": {"$ref": "#/$defs/sha256"},
+        "candidate_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "challenge_id": {"type": "string", "pattern": "^RC[01]-[0-9a-f]{32}$"}
+      }
+    },
+    "screenshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "pixel_sha256", "dhash64", "format", "width", "height", "size_bytes", "pixel_mode"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "pixel_sha256": {"$ref": "#/$defs/sha256"},
+        "dhash64": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+        "format": {"enum": ["png", "jpeg", "webp"]},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "pixel_mode": {"const": "RGBA"}
+      }
+    },
+    "p7": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "recorded_at", "operator", "candidate", "devices", "items", "screenshot_list", "accepted", "mode"],
+      "properties": {
+        "schema_version": {"const": 3},
+        "recorded_at": {"type": "string", "minLength": 1},
+        "operator": {"type": "string", "minLength": 1},
+        "candidate": {"$ref": "#/$defs/candidate"},
+        "devices": {"type": "array", "items": {"$ref": "#/$defs/device"}, "minItems": 1},
+        "items": {"type": "array", "items": {"$ref": "#/$defs/p7_item"}, "minItems": 1},
+        "screenshot_list": {"type": "array", "items": {"$ref": "#/$defs/screenshot"}},
+        "accepted": {"type": "boolean"},
+        "mode": {"const": "evidence-json-with-validated-image-hashes"}
+      }
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device_id", "windows_version", "os_label"],
+      "properties": {
+        "device_id": {"type": "string", "minLength": 1},
+        "windows_version": {"type": "string", "minLength": 1},
+        "os_label": {"type": "string", "pattern": "^[a-z0-9_]+$"}
+      }
+    },
+    "review": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {"reviewer": {"type": "string"}, "reason": {"type": "string"}}
+    },
+    "p7_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "required", "status", "device_id", "screenshots", "shared_evidence_reason", "near_duplicate_review", "note"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "required": {"type": "boolean"},
+        "status": {"enum": ["PASS", "FAIL", "NA"]},
+        "device_id": {"type": "string"},
+        "screenshots": {"type": "array", "items": {"$ref": "#/$defs/screenshot"}},
+        "shared_evidence_reason": {"type": "string"},
+        "near_duplicate_review": {"$ref": "#/$defs/review"},
+        "note": {"type": "string", "minLength": 1}
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "created_at", "rc0", "rc0_manifest_sha256", "p7_report_sha256", "screenshot_fingerprints", "device_matrix", "compatibility", "warnings", "conclusion"],
+      "properties": {
+        "schema_version": {"const": 2},
+        "created_at": {"type": "string", "minLength": 1},
+        "rc0": {"$ref": "#/$defs/candidate"},
+        "rc0_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "p7_report_sha256": {"$ref": "#/$defs/sha256"},
+        "screenshot_fingerprints": {"type": "array", "items": {"$ref": "#/$defs/fingerprint"}},
+        "device_matrix": {"type": "array", "items": {"$ref": "#/$defs/device"}},
+        "compatibility": {
+          "type": "object", "additionalProperties": false, "required": ["win10_22h2"],
+          "properties": {
+            "win10_22h2": {
+              "type": "object", "additionalProperties": false, "required": ["status", "officially_supported", "verified_passed"],
+              "properties": {"status": {"enum": ["PASS", "FAIL", "NA"]}, "officially_supported": {"const": false}, "verified_passed": {"type": "boolean"}}
+            }
+          }
+        },
+        "warnings": {"type": "array", "items": {"type": "string"}},
+        "conclusion": {"const": "accepted"}
+      }
+    },
+    "fingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "sha256", "pixel_sha256", "dhash64"],
+      "properties": {
+        "case_id": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "pixel_sha256": {"$ref": "#/$defs/sha256"},
+        "dhash64": {"type": "string", "pattern": "^[0-9a-f]{16}$"}
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "product_version", "display_version", "windows_file_version", "product_name", "exe_name", "dist_directory_name", "installer_name", "installer_base_filename", "version_note_file", "candidate_id", "git_commit", "candidate_stage", "created_at", "build", "dependency_lock", "frontend_contract", "promotion_record", "artifacts"],
+      "properties": {
+        "schema_version": {"const": 5},
+        "product_version": {"type": "string"}, "display_version": {"type": "string"},
+        "windows_file_version": {"type": "string"}, "product_name": {"type": "string"},
+        "exe_name": {"type": "string"}, "dist_directory_name": {"type": "string"},
+        "installer_name": {"type": "string"}, "installer_base_filename": {"type": "string"},
+        "version_note_file": {"type": "string"}, "candidate_id": {"type": "string"},
+        "git_commit": {"type": "string"}, "candidate_stage": {"enum": ["rc0", "rc1"]},
+        "created_at": {"type": "string"}, "build": {"$ref": "#/$defs/build_context"},
+        "dependency_lock": {"$ref": "#/$defs/dependency_lock"},
+        "frontend_contract": {"oneOf": [{"$ref": "#/$defs/reference"}, {"type": "null"}]},
+        "promotion_record": {"oneOf": [{"$ref": "#/$defs/reference"}, {"type": "null"}]},
+        "artifacts": {
+          "type": "object", "additionalProperties": false, "required": ["exe", "installer"],
+          "properties": {"exe": {"$ref": "#/$defs/artifact"}, "installer": {"$ref": "#/$defs/artifact"}}
+        }
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "product_version", "display_version", "windows_file_version", "product_name", "exe_name", "dist_directory_name", "installer_name", "installer_base_filename", "version_note_file", "candidate_id", "git_commit", "candidate_stage", "created_at", "build", "dependency_lock", "frontend_contract", "promotion_record", "commercial_dir", "source_dir", "artifacts", "inventories", "internal_evidence", "automated_acceptance", "sensitive_scan", "p7_policy", "manual_checklist"],
+      "properties": {
+        "schema_version": {"const": 5},
+        "product_version": {"type": "string"}, "display_version": {"type": "string"},
+        "windows_file_version": {"type": "string"}, "product_name": {"type": "string"},
+        "exe_name": {"type": "string"}, "dist_directory_name": {"type": "string"},
+        "installer_name": {"type": "string"}, "installer_base_filename": {"type": "string"},
+        "version_note_file": {"type": "string"}, "candidate_id": {"type": "string"},
+        "git_commit": {"type": "string"}, "candidate_stage": {"enum": ["rc0", "rc1"]},
+        "created_at": {"type": "string"}, "build": {"$ref": "#/$defs/build_context"},
+        "dependency_lock": {"$ref": "#/$defs/dependency_lock"}, "frontend_contract": {"oneOf": [{"$ref": "#/$defs/reference"}, {"type": "null"}]},
+        "promotion_record": {"oneOf": [{"$ref": "#/$defs/reference"}, {"type": "null"}]}, "commercial_dir": {"type": "string"},
+        "source_dir": {"type": "string"},
+        "artifacts": {
+          "type": "object", "additionalProperties": false, "required": ["exe", "installer", "commercial_zip", "source_zip"],
+          "properties": {"exe": {"$ref": "#/$defs/artifact"}, "installer": {"$ref": "#/$defs/artifact"}, "commercial_zip": {"$ref": "#/$defs/artifact"}, "source_zip": {"$ref": "#/$defs/artifact"}}
+        },
+        "inventories": {
+          "type": "object", "additionalProperties": false,
+          "properties": {"commercial": {"$ref": "#/$defs/inventory"}, "source": {"$ref": "#/$defs/inventory"}}
+        },
+        "internal_evidence": {
+          "type": "object", "additionalProperties": false, "required": ["compile_report", "resource_manifest", "build_manifest"],
+          "properties": {"compile_report": {"$ref": "#/$defs/artifact"}, "resource_manifest": {"$ref": "#/$defs/artifact"}, "build_manifest": {"$ref": "#/$defs/artifact"}}
+        },
+        "automated_acceptance": {
+          "type": "object", "additionalProperties": false, "required": ["offline", "packaged_smoke", "default_contract"],
+          "properties": {"offline": {"$ref": "#/$defs/command_result"}, "packaged_smoke": {"$ref": "#/$defs/command_result"}, "default_contract": {"oneOf": [{"$ref": "#/$defs/command_result"}, {"type": "null"}]}}
+        },
+        "sensitive_scan": {
+          "type": "object", "additionalProperties": false, "required": ["commercial", "source", "passed"],
+          "properties": {"commercial": {"type": "array", "items": {"type": "string"}}, "source": {"type": "array", "items": {"type": "string"}}, "passed": {"type": "boolean"}}
+        },
+        "p7_policy": {
+          "type": "object", "additionalProperties": false, "required": ["required", "report_path", "schema_version"],
+          "properties": {"required": {"const": true}, "report_path": {"const": "V3_P7_人工验收报告.json"}, "schema_version": {"const": 3}}
+        },
+        "manual_checklist": {
+          "type": "object", "additionalProperties": false, "required": ["json", "txt"],
+          "properties": {"json": {"type": "string"}, "txt": {"type": "string"}}
+        }
+      }
+    },
+    "final_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "created_at", "allowed_for_external_release", "rc1_manifest_sha256", "rc1_p7_sha256", "promotion_sha256", "sections"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "created_at": {"type": "string", "minLength": 1},
+        "allowed_for_external_release": {"const": true},
+        "rc1_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "rc1_p7_sha256": {"$ref": "#/$defs/sha256"},
+        "promotion_sha256": {"$ref": "#/$defs/sha256"},
+        "sections": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["automated", "manual_acceptance", "supply_chain_integrity", "known_risks", "external_release"],
+          "properties": {
+            "automated": {"type": "string"},
+            "manual_acceptance": {"type": "string"},
+            "supply_chain_integrity": {"type": "string"},
+            "known_risks": {"type": "string"},
+            "external_release": {"type": "string"}
+          }
+        }
+      }
+    },
+    "signature_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "subject_path", "subject_sha256", "subject_size_bytes", "signature_path", "signature_sha256", "bundle_path", "bundle_sha256"],
+      "properties": {
+        "role": {"enum": ["release_manifest", "installer", "commercial_zip", "source_zip", "final_decision"]},
+        "subject_path": {"type": "string", "pattern": "^(?![A-Za-z]:)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+        "subject_sha256": {"$ref": "#/$defs/sha256"},
+        "subject_size_bytes": {"type": "integer", "minimum": 1},
+        "signature_path": {"type": "string", "pattern": "^release_local/signatures/.+\\.sig$"},
+        "signature_sha256": {"$ref": "#/$defs/sha256"},
+        "bundle_path": {"type": "string", "pattern": "^release_local/signatures/.+\\.bundle\\.json$"},
+        "bundle_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "candidate_signature_index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "key_id", "public_key_path", "subjects"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "key_id": {"$ref": "#/$defs/sha256"},
+        "public_key_path": {"const": "stock_tool/config/release_signing/cosign-v1.pub"},
+        "subjects": {"type": "array", "items": {"$ref": "#/$defs/signature_subject"}, "minItems": 4, "maxItems": 4}
+      }
+    },
+    "signature_index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "key_id", "public_key_path", "subjects"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "key_id": {"$ref": "#/$defs/sha256"},
+        "public_key_path": {"const": "stock_tool/config/release_signing/cosign-v1.pub"},
+        "subjects": {"type": "array", "items": {"$ref": "#/$defs/signature_subject"}, "minItems": 5, "maxItems": 5}
+      }
+    }
+  }
+}

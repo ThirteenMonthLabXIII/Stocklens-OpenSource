@@ -1,0 +1,2 @@
+# Internal developer/build dependency. Customer commercial packages never carry this file.
+Nuitka==4.1.3

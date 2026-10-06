@@ -1,0 +1,60 @@
+name: Offline source checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_original_suite:
+        description: Run the original quick suite (includes historical release contracts)
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  QT_QPA_PLATFORM: offscreen
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  core-offline:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Standard-library demo and export boundaries
+        run: |
+          python -X utf8 tools/demo_offline.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -X utf8 tools/test_open_source_export.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Core offline regression
+        run: |
+          $checks = @(
+            'tools/test_phase0_5_selection_policy.py',
+            'tools/test_phase1_candidate_layer.py',
+            'tools/test_phase2_evidence_package.py',
+            'tools/test_phase4_multi_agent.py',
+            'tools/test_phase5_evidence_summary.py',
+            'tools/test_phase7_evaluation.py'
+          )
+          foreach ($check in $checks) {
+            python -X utf8 $check
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          python -m compileall -q stock_tool tools research
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Original quick suite
+        if: github.event_name == 'workflow_dispatch' && inputs.run_original_suite
+        run: python -X utf8 tools/test_all_blocks.py --quick

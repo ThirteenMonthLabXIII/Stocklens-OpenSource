@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "version": "adaptive_baseline_v1",
+  "status": "PRE_REGISTERED_RESEARCH_ONLY",
+  "purpose": "Explainable regime-aware multi-factor baseline. This policy is not a production trading recommendation and must pass walk-forward gates before any adoption.",
+  "regime_rules": {
+    "min_observations": 20,
+    "trend_column_preference": ["market_return_20d", "momentum_20d", "momentum_60d"],
+    "breadth_column_preference": ["market_breadth_20d", "breadth_20d"],
+    "volatility_column_preference": ["market_volatility_20d", "volatility_20d"],
+    "up": {"trend_at_least": 0.08, "breadth_at_least": 0.60},
+    "down": {"trend_at_most": -0.08, "breadth_at_most": 0.40}
+  },
+  "dimension_factors": {
+    "valuation": {
+      "pe_ttm": "low",
+      "pb_mrq": "low"
+    },
+    "quality": {
+      "roe": "high",
+      "net_margin": "high",
+      "gross_margin": "high",
+      "debt_ratio": "low"
+    },
+    "growth": {
+      "revenue_growth": "high",
+      "profit_growth": "high"
+    },
+    "trend": {
+      "momentum_60d": "high",
+      "momentum_120d": "high"
+    },
+    "risk": {
+      "volatility_20d": "low",
+      "max_drawdown_60d": "low"
+    }
+  },
+  "regime_weights": {
+    "up": {"valuation": 0.15, "quality": 0.20, "growth": 0.25, "trend": 0.25, "risk": 0.15},
+    "range": {"valuation": 0.25, "quality": 0.25, "growth": 0.10, "trend": 0.10, "risk": 0.30},
+    "down": {"valuation": 0.15, "quality": 0.20, "growth": 0.05, "trend": 0.10, "risk": 0.50},
+    "unknown": {"valuation": 0.20, "quality": 0.20, "growth": 0.20, "trend": 0.15, "risk": 0.25}
+  },
+  "missing_penalty": 0.03
+}

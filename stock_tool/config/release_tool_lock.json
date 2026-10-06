@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "cosign": {
+      "version": "3.0.6",
+      "release_url": "https://github.com/sigstore/cosign/releases/tag/v3.0.6",
+      "asset": "cosign-windows-amd64.exe",
+      "asset_url": "https://github.com/sigstore/cosign/releases/download/v3.0.6/cosign-windows-amd64.exe",
+      "sha256": "9b85a88ebff2d9dd30ff4984a6f61f2cedc232dd87d81fa7f2ff3c0ed96c241c",
+      "checksum_asset": "cosign_checksums.txt",
+      "checksum_sha256": "90ee0c2fd4003333ccb4324cc1783d012fa1e3dd3ad9843328670a5ecc285cfe",
+      "verification": "GitHub Release API digest + official checksum + sigstore bundle"
+    },
+    "gitleaks": {
+      "version": "8.28.0",
+      "release_url": "https://github.com/gitleaks/gitleaks/releases/tag/v8.28.0",
+      "asset": "gitleaks_8.28.0_windows_x64.zip",
+      "asset_url": "https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_windows_x64.zip",
+      "sha256": "da6458e8864af553807de1c46a7a8eac0880bd6b99ba56288e87e86a45af884f",
+      "checksum_asset": "gitleaks_8.28.0_checksums.txt",
+      "checksum_sha256": "4ea55cd2e433edbe3151e0ff49b044df310e29967a38f38b68b1434a3660dcb8",
+      "verification": "GitHub Release API digest + official checksum"
+    },
+    "syft": {
+      "version": "1.44.0",
+      "release_url": "https://github.com/anchore/syft/releases/tag/v1.44.0",
+      "asset": "syft_1.44.0_windows_amd64.zip",
+      "asset_url": "https://github.com/anchore/syft/releases/download/v1.44.0/syft_1.44.0_windows_amd64.zip",
+      "sha256": "195e786eb84ec145854f20528992e86637c77d1968731dfe6ce850c90e28f47a",
+      "checksum_asset": "syft_1.44.0_checksums.txt",
+      "checksum_sha256": "fa24ce6cafe6edbdba166414ce79de8142fbc217f8167e418dfb09e5aedfbf4e",
+      "verification": "GitHub Release API digest + official checksum signature"
+    },
+    "jsonschema": {"version": "4.26.0", "source": "PyPI isolated release venv"},
+    "pip-audit": {"version": "2.10.0", "source": "PyPI isolated release venv"}
+  }
+}

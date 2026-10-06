@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "status": "PRE_REGISTERED_NOT_RUN",
+  "created_at": "2026-06-20",
+  "purpose": "Single structural v2 hypothesis after Phase 0 attribution and Phase 1 IC diagnostics. This file is research-only and does not alter production D-weight-policy or screener behavior.",
+  "discipline": {
+    "consumed_holdout": {
+      "ledger": "research/holdout_ledger.json",
+      "window": ["2025-01-01", "2026-06-16"],
+      "rule": "Do not rerun or tune on this holdout. It was used once and remains only exploratory context for v2 design."
+    },
+    "confirmation_window": {
+      "start_after": "2026-06-16",
+      "minimum_months_without_tuning": 6,
+      "preferred_months_without_tuning": 12,
+      "rule": "Only forward data observed after 2026-06-16 can confirm or reject v2."
+    },
+    "dsr_trials_n": 180,
+    "dsr_trials_rationale": "Phase 1 produced 20 factors x 3 horizons x 3 IC types = 180 exploratory summary cells. Future DSR/PSR disclosure must use at least this trial count unless a stricter count is warranted.",
+    "candidate_count": 1,
+    "no_grid_search": true,
+    "soft_shrink_gate": {
+      "gate_type": "direction_soft_ramp_v1",
+      "scope": "research v2 default weights only; no production screener or D-weight-policy change",
+      "strict_direction_gate": {
+        "mean_stat": "> 0",
+        "period_sharpe_stat": "> 0",
+        "failure_action": "lambda=0"
+      },
+      "dsr_ramp": [0.05, 0.65],
+      "probability_ramp": [0.50, 0.75],
+      "evidence": "geometric_mean(smoothstep(DSR), smoothstep(P(mean > 0)), smoothstep(P(sharpe > 0)))",
+      "pbo_role": "discount_cap_only",
+      "lambda_formula": "clip(1-PBO,0,1) * evidence",
+      "missing_or_non_finite_action": "lambda=0 and record failed_reasons",
+      "interpretation": "evidence-weighted exploratory shrinkage; not alpha confirmation",
+      "confirmatory": false,
+      "frozen_note": "Changing these ramp intervals requires a new v2.1 preregistration, not tuning on the current development set."
+    }
+  },
+  "evidence_inputs": {
+    "attribution": "research/out/attribution_postmortem.md",
+    "factor_ic": "research/out/factor_ic.md",
+    "alphalens_crosscheck": "research/out/alphalens_crosscheck.md",
+    "gate_result": "PASS_TO_SINGLE_STRUCTURAL_HYPOTHESIS_ONLY",
+    "gate_reason": "Meaningful exploratory IC appears in valuation, low volatility, low turnover, reversal, and liquidity structure. Original fundamental/growth/safety dimensions were mostly near noise."
+  },
+  "objective": {
+    "name": "J",
+    "formula": "mean_excess - 0.5 * abs(max_drawdown) - 0.2 * turnover - 0.3 * weight_instability",
+    "evaluation_note": "Training diagnostics may use data up to 2026-06-16, but cannot be reported as confirmation."
+  },
+  "candidate": {
+    "id": "v2_value_lowvol_reversal_guarded_liquidity",
+    "type": "structural_overlay",
+    "hypothesis": "A constrained value + low volatility + low turnover + reversal structure has more exploratory IC support than the original five-dimension fundamental score, provided liquidity and concentration risks are bounded.",
+    "score_components": [
+      {
+        "name": "valuation",
+        "weight": 0.35,
+        "inputs": [
+          {"factor": "pb_mrq", "direction": "low", "subweight": 0.70},
+          {"factor": "ps_ttm", "direction": "low", "subweight": 0.30}
+        ]
+      },
+      {
+        "name": "low_volatility",
+        "weight": 0.25,
+        "inputs": [
+          {"factor": "volatility_20d", "direction": "low", "subweight": 1.00}
+        ]
+      },
+      {
+        "name": "low_turnover",
+        "weight": 0.15,
+        "inputs": [
+          {"factor": "turnover_20d", "direction": "low", "subweight": 1.00}
+        ]
+      },
+      {
+        "name": "medium_term_reversal",
+        "weight": 0.15,
+        "inputs": [
+          {"factor": "momentum_60d", "direction": "low", "subweight": 0.70},
+          {"factor": "momentum_120d", "direction": "low", "subweight": 0.30}
+        ]
+      },
+      {
+        "name": "guarded_liquidity_premium",
+        "weight": 0.10,
+        "inputs": [
+          {"factor": "liquidity_amount_20d", "direction": "low", "subweight": 1.00}
+        ],
+        "guardrail": "Do not allow this component to select names failing the liquidity floor."
+      }
+    ],
+    "risk_guards": {
+      "liquidity_floor": "Exclude bottom 10% by liquidity_amount_20d among eligible stocks before final selection.",
+      "industry_cap": "No single industry above 20% of selected names.",
+      "board_cap": "STAR_688 + ChiNext_300 + ChiNext_301 combined share no higher than 40% of selected names.",
+      "single_name_stickiness_review": "If a name appears in more than 9 of the first 12 forward monthly selections, flag for review but do not tune rules mid-confirmation.",
+      "top_n": 50,
+      "holding_days": 20,
+      "entry_filters": "Reuse Phase C eligible-at-entry filter for trade_status, positive close/preclose, and limit-lock threshold."
+    }
+  },
+  "explicitly_not_included": [
+    "No fundamental/growth/safety weight tuning.",
+    "No reuse of value_tilt holdout performance as evidence of v2 validity.",
+    "No marketing claims about win rate, accuracy, alpha, stability, or investability."
+  ],
+  "next_allowed_step": "Implement v2 research-only scorer/backtest wrapper for train diagnostics, then wait for real forward data after 2026-06-16 for confirmation."
+}

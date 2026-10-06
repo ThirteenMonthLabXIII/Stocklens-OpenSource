@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "status": "research_only",
+  "training_window": ["2019-01-01", "2024-12-31"],
+  "diagnostic_holdout": ["2025-01-01", "2026-06-16"],
+  "holdout_may_select_weights": false,
+  "prior_share": 0.75,
+  "evidence_share": 0.25,
+  "max_relative_deviation_from_prior": 0.25,
+  "minimum_forward_months_before_release": 6,
+  "allow_direction_changes": false,
+  "allow_parameter_search": false,
+  "release_mode": "new_template_version_only"
+}

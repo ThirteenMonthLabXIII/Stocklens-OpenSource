@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fixed non-secret P7 compatibility case identifier"
+regexes = ['''win10_22h2_compat''']

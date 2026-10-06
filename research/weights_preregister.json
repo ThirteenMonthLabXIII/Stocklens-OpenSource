@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "phase": "C",
+  "created_at": "2026-06-16T00:00:00+08:00",
+  "created_from_head": "767a4ff",
+  "discipline": {
+    "purpose": "Rank a small pre-registered set of weight policies for robustness; do not search a grid.",
+    "holdout_window": ["2025-01-01", "2026-06-16"],
+    "holdout_rule": "Run the holdout once only after full 2018-2026 point-in-time panel coverage is available.",
+    "production_boundary": "Research only; do not modify D-weight-policy or the production screener pipeline.",
+    "forbidden_claims": ["guaranteed return", "marketing win-rate claim", "production accuracy claim"]
+  },
+  "dimensions": ["fundamental", "growth", "safety", "valuation", "trend"],
+  "candidates": [
+    {
+      "id": "contract_baseline",
+      "reason": "Contract reference balance across fundamentals, growth, safety, valuation, and trend.",
+      "weights": {
+        "fundamental": 0.30,
+        "growth": 0.20,
+        "safety": 0.20,
+        "valuation": 0.20,
+        "trend": 0.10
+      }
+    },
+    {
+      "id": "value_tilt",
+      "reason": "Tests whether cheaper PE/PB improves stability without dropping quality and safety.",
+      "weights": {
+        "fundamental": 0.25,
+        "growth": 0.15,
+        "safety": 0.20,
+        "valuation": 0.30,
+        "trend": 0.10
+      }
+    },
+    {
+      "id": "quality_tilt",
+      "reason": "Tests whether profitability and margin quality are more stable than valuation timing.",
+      "weights": {
+        "fundamental": 0.40,
+        "growth": 0.20,
+        "safety": 0.20,
+        "valuation": 0.10,
+        "trend": 0.10
+      }
+    },
+    {
+      "id": "balanced_equal",
+      "reason": "A simple equal-dimension control for detecting over-specific hand tuning.",
+      "weights": {
+        "fundamental": 0.20,
+        "growth": 0.20,
+        "safety": 0.20,
+        "valuation": 0.20,
+        "trend": 0.20
+      }
+    },
+    {
+      "id": "no_trend",
+      "reason": "Tests whether price trend is fragile noise by assigning no trend weight without renormalizing elsewhere.",
+      "weights": {
+        "fundamental": 0.30,
+        "growth": 0.20,
+        "safety": 0.20,
+        "valuation": 0.20,
+        "trend": 0.00
+      }
+    }
+  ]
+}

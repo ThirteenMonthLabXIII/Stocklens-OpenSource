@@ -1,0 +1,7 @@
+baostock>=0.8.9
+tushare>=1.4.0
+
+# Optional oracle-only development checks, not required by the research runtime:
+# alphalens-reloaded
+# skfolio
+# arch
